@@ -1,0 +1,99 @@
+#!/bin/sh
+
+function portIsNotTaken {
+   port=$1;
+   if (netstat -tulpn 2>&1 | sed -e 's/\s\+/ /g' | cut -d " " -f4 >&1 | grep ":$port$" > /dev/null); then
+      return 0;
+   fi
+   return 1;
+}
+
+declare -A colors;
+colors=( ["blue"]="\033[1;34m" ["green"]="\033[1;32m" ["no-color"]="\033[0m" ["red"]="\033[1;31m" );
+username=`whoami`;
+startPort=7474;
+
+echo "Username: $username";
+if [ $username == 'root' ]; then
+   echo "script should not be ran as root";
+   exit;
+fi
+
+if [ -d ~/neo4j-instances ]; then
+   echo "changing to neo4j-instances";
+   cd ~/neo4j-instances
+else
+   echo "creating neo4j-instances";
+   cd ~;
+   mkdir neo4j-instances;
+   cd ~/neo4j-instances;
+fi
+
+if [ ! -d neo4j-skeleton ]; then
+   mkdir ./neo4j-skeleton
+   curl -L "http://neo4j.com/artifact.php?name=neo4j-community-2.1.6-unix.tar.gz" | tar xzC neo4j-skeleton --strip-components 1
+fi
+
+if [ ! -d ports ]; then
+   mkdir ports
+fi
+
+if [ "$1" == "create" ]; then
+   lastPort=`ls ports | sort | tail -n1`;
+   lastSslPort=$((lastPort - 1));
+
+echo "lastPort: $lastPort";
+echo "lastSslPort: $lastSslPort";
+
+w=`pwd`;
+echo "Directory: $w"
+   if [ "$lastPort" == "" ] || [ -d "ports/$lastPort" ]; then
+      lastPort=$startPort;
+      while [ -d "ports/$lastPort" ]; do
+         echo "increment";
+         lastPort=$((lastPort + 2));
+      done
+      lastSslPort=$((lastPort-1));
+   fi
+echo "+lastPort: $lastPort";
+echo "+lastSslPort: $lastSslPort";
+   if [ ! -d "ports/$lastPort" ]; then
+      echo "*${colors["green"]}E${colors["no-color"]} creating database";
+      cp -r neo4j-skeleton "ports/$lastPort";
+      cat neo4j-skeleton/conf/neo4j-server.properties | sed -e "s/org.neo4j.server.webserver.port=7474/org.neo4j.server.webserver.port=$lastPort/" | sed -e "s/org.neo4j.server.webserver.https.port=7473/org.neo4j.server.webserver.https.port=$lastSslPort/" > ports/$lastPort/conf/neo4j-server.properties
+   fi
+elif [ "$1" == "list" ]; then
+   echo -e "*${colors["blue"]}M${colors["no-color"]}* neo4j databases:";
+   for x in `ls ports`; do
+      if (portIsNotTaken $x); then
+         status="${colors["green"]}on${colors["no-color"]}";
+      else
+         status="${colors["blue"]}off${colors["no-color"]}";
+      fi
+      echo -e "    $x - status [$status]";
+   done
+elif [ "$1" == "start" ] || [ "$1" == "stop" ] || [ "$1" == "status" ]; then
+   echo "start";
+   if [ ! -z "$2" ]; then
+      echo "port [$2]";
+      if [ "$1" == "start" ] && (portIsNotTaken $2); then
+         echo -e "*${colors["red"]}W${colors["no-color"]}* database already started";
+      elif [ "$1" == "stop" ] && (! portIsNotTaken $2) && [ -d "ports/$2" ]; then
+         echo -e "*${colors["red"]}W${colors["no-color"]}* database was already stopped";
+      elif [ ! -d "ports/$2" ]; then
+         echo -e "*${colors["red"]}W${colors["no-color"]}* database was never created for that port";
+      else
+         cd "ports/$2/bin";
+         w=`pwd`;
+         echo  "cwd: $w"
+         if [ "$1" == "start" ]; then
+            # wanted to reduce the output of the start to one line.
+            ./neo4j start | grep http;
+         else
+            ./neo4j $1
+         fi
+      fi
+   else
+      echo "PORT was not given";
+   fi
+fi
