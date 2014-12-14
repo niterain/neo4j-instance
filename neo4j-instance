@@ -1,6 +1,6 @@
 #!/bin/sh
 
-function portIsNotTaken {
+function portIsTaken {
    port=$1;
    if (netstat -tulpn 2>&1 | sed -e 's/\s\+/ /g' | cut -d " " -f4 >&1 | grep ":$port$" > /dev/null); then
       return 0;
@@ -9,8 +9,19 @@ function portIsNotTaken {
 }
 
 function message {
+   message=$1
+   tag=$2
+   color=$3
 
+   if [ ! -z $color ]; then
+      color="${colors["$color"]}";
+   fi
 
+   if [ ! -z $tag ]; then
+      tag="*$color$tag${colors["no-color"]}* ";
+   fi
+
+   echo -e "$tag$message";
 }
 
 function usage {
@@ -26,7 +37,6 @@ The commands are as follows:
   list                     list the different databases,
                            with their ports and their status
 
-
 Report bugs to levi@eneservices.com
 TXT
    echo "$output";
@@ -39,7 +49,7 @@ startPort=7474;
 currentVersion="2.1.6";
 
 if [ $username == 'root' ]; then
-   echo "script should not be ran as root";
+   message "script should not be ran as root" "W" "red";
    exit;
 fi
 
@@ -75,35 +85,38 @@ elif [ "$1" == "create" ]; then
    fi
 
    if [ ! -d "ports/$lastPort" ]; then
-      echo -e "*${colors["green"]}E${colors["no-color"]}* creating database";
+      message "create database" "E" "green";
       cp -r neo4j-skeleton "ports/$lastPort";
       cat neo4j-skeleton/conf/neo4j-server.properties | sed -e "s/org.neo4j.server.webserver.port=7474/org.neo4j.server.webserver.port=$lastPort/" | sed -e "s/org.neo4j.server.webserver.https.port=7473/org.neo4j.server.webserver.https.port=$lastSslPort/" > ports/$lastPort/conf/neo4j-server.properties
    fi
 elif [ "$1" == "list" ]; then
-   echo -e "*${colors["blue"]}M${colors["no-color"]}* neo4j databases:";
+   message "neo4j databases:" "M" "blue";
    for x in `ls ports`; do
-      if (portIsNotTaken $x); then
+      if (portIsTaken $x); then
          status="${colors["green"]}on${colors["no-color"]}";
       else
          status="${colors["blue"]}off${colors["no-color"]}";
       fi
-      echo -e "    $x - status [$status]";
+      message "    $x - status [$status]";
    done
 elif [ "$1" == "destroy" ]; then
    if [ ! -z "$2" ] && [ -d "ports/$2" ]; then
+      if (portIsTaken $2); then
+         ./ports/$2/bin/neo4j stop;
+      fi
       rm -r "ports/$2";
-      echo -e "*${colors["blue"]}M${colors["no-color"]}* database on port [$2] was deleted";
+      message "database on port [$2] was deleted" "M" "blue";
    else
-      echo -e "*${colors["red"]}W${colors["no-color"]} port was not given";
+      message "port was not given" "W" "red";
    fi
 elif [ "$1" == "start" ] || [ "$1" == "stop" ] || [ "$1" == "status" ]; then
    if [ ! -z "$2" ]; then
-      if [ "$1" == "start" ] && (portIsNotTaken $2); then
-         echo -e "*${colors["red"]}W${colors["no-color"]}* database already started";
-      elif [ "$1" == "stop" ] && (! portIsNotTaken $2) && [ -d "ports/$2" ]; then
-         echo -e "*${colors["red"]}W${colors["no-color"]}* database was already stopped";
+      if [ "$1" == "start" ] && (portIsTaken $2); then
+         message "database already started" "W" "red";
+      elif [ "$1" == "stop" ] && (! portIsTaken $2) && [ -d "ports/$2" ]; then
+         message "database was already stopped" "W" "red";
       elif [ ! -d "ports/$2" ]; then
-         echo -e "*${colors["red"]}W${colors["no-color"]}* database was never created for that port";
+         message "database was never created for that port" "W" "red";
       else
          cd "ports/$2/bin";
          if [ "$1" == "start" ]; then
@@ -114,6 +127,6 @@ elif [ "$1" == "start" ] || [ "$1" == "stop" ] || [ "$1" == "status" ]; then
          fi
       fi
    else
-      echo "*${colors["red"]}W${colors["no-color"]} port was not given";
+      message "port was not given" "W" "red";
    fi
 fi
