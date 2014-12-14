@@ -8,6 +8,30 @@ function portIsNotTaken {
    return 1;
 }
 
+function message {
+
+
+}
+
+function usage {
+   read -r -d "" output << TXT
+Usage: neo4j-instance [command]
+
+The commands are as follows:
+  help                     outputs this document
+  create                   create a new database instance
+  start port               starts a neo4j instance
+  stop port                stops a neo4j instance
+  destroy                  destroys a database instance
+  list                     list the different databases,
+                           with their ports and their status
+
+
+Report bugs to levi@eneservices.com
+TXT
+   echo "$output";
+}
+
 declare -A colors;
 colors=( ["blue"]="\033[1;34m" ["green"]="\033[1;32m" ["no-color"]="\033[0m" ["red"]="\033[1;31m" );
 username=`whoami`;
@@ -36,7 +60,9 @@ if [ ! -d ports ]; then
    mkdir ports
 fi
 
-if [ "$1" == "create" ]; then
+if [ "$1" == "" ] || [ "$1" == "help" ]; then
+   usage;
+elif [ "$1" == "create" ]; then
    lastPort=`ls ports | sort | tail -n1`;
    lastSslPort=$((lastPort - 1));
 
@@ -48,7 +74,7 @@ if [ "$1" == "create" ]; then
       lastSslPort=$((lastPort-1));
    fi
 
-   if [ ! -d "ports/$lastPort" ]; then 
+   if [ ! -d "ports/$lastPort" ]; then
       echo -e "*${colors["green"]}E${colors["no-color"]}* creating database";
       cp -r neo4j-skeleton "ports/$lastPort";
       cat neo4j-skeleton/conf/neo4j-server.properties | sed -e "s/org.neo4j.server.webserver.port=7474/org.neo4j.server.webserver.port=$lastPort/" | sed -e "s/org.neo4j.server.webserver.https.port=7473/org.neo4j.server.webserver.https.port=$lastSslPort/" > ports/$lastPort/conf/neo4j-server.properties
