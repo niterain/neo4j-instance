@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 function portIsTaken {
    port=$1;
@@ -29,13 +29,18 @@ function usage {
 Usage: neo4j-instance [command]
 
 The commands are as follows:
-  help                     outputs this document
-  create                   create a new database instance
-  start port               starts a neo4j instance
-  stop port                stops a neo4j instance
-  destroy                  destroys a database instance
-  list                     list the different databases,
-                           with their ports and their status
+  help                           outputs this document
+  create [option]                create a new database instance
+  	  options:
+	     -d <db name>        sets the name of the neo4j instance
+	     -t <neo4j type>     sets the neo4j type (community | enterprise)
+	     -v <neo4j version>  sets neo4j version (default: $currentVersion)
+  rename-db <port> <db name>     renames the db neo4j instance
+  start <port>                   starts a neo4j instance
+  stop <port>                    stops a neo4j instance
+  destroy <port>                 destroys a database instance
+  list                           list the different databases,
+                                 with their ports and their status
 
 Report bugs to levi@eneservices.com
 TXT
@@ -43,10 +48,11 @@ TXT
 }
 
 declare -A colors;
-colors=( ["blue"]="\033[1;34m" ["green"]="\033[1;32m" ["no-color"]="\033[0m" ["red"]="\033[1;31m" );
+colors=( ["blue"]="\e[1;34m" ["green"]="\e[1;32m" ["no-color"]="\e[0m" ["red"]="\e[1;31m" ["grey"]="\e[1;37m" ["magenta"]="\e[1;95m" ["purple"]="\e[38;5;135m" );
 username=`whoami`;
 startPort=7474;
 currentVersion="2.1.6";
+neo4jType="community";
 
 if [ $username == 'root' ]; then
    message "script should not be ran as root" "W" "red";
@@ -61,22 +67,18 @@ else
    cd ~/neo4j-instances;
 fi
 
-if [ ! -d neo4j-skeleton ]; then
-   mkdir ./neo4j-skeleton
-   curl -L "http://neo4j.com/artifact.php?name=neo4j-community-${currentVersion}-unix.tar.gz" | tar xzC neo4j-skeleton --strip-components 1
-fi
-
 if [ ! -d ports ]; then
    mkdir ports
 fi
 
-if [ "$1" == "" ] || [ "$1" == "help" ]; then
+if [ -z "$1" ] || [ "$1" == "help" ]; then
    usage;
 elif [ "$1" == "create" ]; then
+   dbName="";
    lastPort=`ls ports | sort | tail -n1`;
    lastSslPort=$((lastPort - 1));
 
-   if [ "$lastPort" == "" ] || [ -d "ports/$lastPort" ]; then
+   if [ -z "$lastPort" ] || [ -d "ports/$lastPort" ]; then
       lastPort=$startPort;
       while [ -d "ports/$lastPort" ]; do
          lastPort=$((lastPort + 2));
@@ -84,20 +86,60 @@ elif [ "$1" == "create" ]; then
       lastSslPort=$((lastPort-1));
    fi
 
+   OPTIND=2;
+   # set neo4j type and version
+   while getopts "d:t:v:" o; do
+      case "$o" in
+         d) dbName=$OPTARG;
+            ;;
+         t) type=$OPTARG;
+	    (( type == "community" || type == "enterprise")) && neo4jType=$type;
+            ;;
+         v) version=$OPTARG;
+	       if [[ $version =~ ^\d+\.\d+\.\d+$ ]]; then
+		  echo "version";
+		  currentVersion=$version
+	       fi
+            ;;
+         *) usage;
+            ;;
+      esac
+   done 
+
+   if [ ! -d "neo4j-skeleton/${neo4jType}-${currentVersion}" ]; then
+      mkdir -p "./neo4j-skeleton/${neo4jType}-${currentVersion}";
+      curl -# -L "http://neo4j.com/artifact.php?name=neo4j-${neo4jType}-${currentVersion}-unix.tar.gz" | tar xzC "neo4j-skeleton/${neo4jType}-${currentVersion}/" --strip-components 1
+   fi
+
    if [ ! -d "ports/$lastPort" ]; then
       message "create database" "E" "green";
-      cp -r neo4j-skeleton "ports/$lastPort";
-      cat neo4j-skeleton/conf/neo4j-server.properties | sed -e "s/org.neo4j.server.webserver.port=7474/org.neo4j.server.webserver.port=$lastPort/" | sed -e "s/org.neo4j.server.webserver.https.port=7473/org.neo4j.server.webserver.https.port=$lastSslPort/" > ports/$lastPort/conf/neo4j-server.properties
+      cp -r "neo4j-skeleton/${neo4jType}-${currentVersion}" "ports/$lastPort";
+      cat "neo4j-skeleton/${neo4jType}-${currentVersion}/conf/neo4j-server.properties" | sed -e "s/org.neo4j.server.webserver.port=7474/org.neo4j.server.webserver.port=$lastPort/" | sed -e "s/org.neo4j.server.webserver.https.port=7473/org.neo4j.server.webserver.https.port=$lastSslPort/" > ports/$lastPort/conf/neo4j-server.properties
+      if [ ! -z "$dbName" ]; then
+         echo -n "$dbName" > ports/$lastPort/db-name
+      fi
    fi
+elif [ "$1" == "rename-db" ]; then
+	if [ -d "ports/$2" ]; then
+		echo -n "$3" > "ports/$2/db-name";
+		message "database name renamed" "M" "blue";
+	else
+		message "port was not given" "E" "red";
+	fi
 elif [ "$1" == "list" ]; then
    message "neo4j databases:" "M" "blue";
    for x in `ls ports`; do
+      dbAddon="";
       if (portIsTaken $x); then
-         status="${colors["green"]}on${colors["no-color"]}";
+         status="${colors["green"]}on ${colors["no-color"]}";
       else
          status="${colors["blue"]}off${colors["no-color"]}";
       fi
-      message "    $x - status [$status]";
+      if [ -f "ports/$x/db-name" ]; then
+         dbName=`cat ports/$x/db-name`; 
+         dbAddon="- db [${colors["purple"]}$dbName${colors["no-color"]}]";
+      fi
+      message "    $x - status [$status] $dbAddon";
    done
 elif [ "$1" == "destroy" ]; then
    if [ ! -z "$2" ] && [ -d "ports/$2" ]; then
@@ -107,7 +149,11 @@ elif [ "$1" == "destroy" ]; then
       rm -r "ports/$2";
       message "database on port [$2] was deleted" "M" "blue";
    else
-      message "port was not given" "W" "red";
+      if [ ! -d "ports/$2" ]; then
+	      message "port [$2] does not exist" "W" "red";
+      else
+         message "was unable to delete port [$2]" "W" "red";
+      fi
    fi
 elif [ "$1" == "start" ] || [ "$1" == "stop" ] || [ "$1" == "status" ]; then
    if [ ! -z "$2" ]; then
