@@ -31,10 +31,10 @@ Usage: neo4j-instance [command]
 The commands are as follows:
   help                           outputs this document
   create [option]                create a new database instance
-  	  options:
-	     -d <db name>        sets the name of the neo4j instance
-	     -t <neo4j type>     sets the neo4j type (community | enterprise)
-	     -v <neo4j version>  sets neo4j version (default: $currentVersion)
+       options:
+          -d <db name>           sets the name of the neo4j instance
+          -t <neo4j type>        sets the neo4j type (community | enterprise)
+          -v <neo4j version>     sets neo4j version (default: $currentVersion)
   rename-db <port> <db name>     renames the db neo4j instance
   start <port>                   starts a neo4j instance
   stop <port>                    stops a neo4j instance
@@ -93,13 +93,13 @@ elif [ "$1" == "create" ]; then
          d) dbName=$OPTARG;
             ;;
          t) type=$OPTARG;
-	    (( type == "community" || type == "enterprise")) && neo4jType=$type;
+            (( type == "community" || type == "enterprise")) && neo4jType=$type;
             ;;
          v) version=$OPTARG;
-	       if [[ $version =~ ^\d+\.\d+\.\d+$ ]]; then
-		  echo "version";
-		  currentVersion=$version
-	       fi
+            if [[ $version =~ ^\d+\.\d+\.\d+$ ]]; then
+               echo "version";
+               currentVersion=$version
+            fi
             ;;
          *) usage;
             ;;
@@ -120,12 +120,12 @@ elif [ "$1" == "create" ]; then
       fi
    fi
 elif [ "$1" == "rename-db" ]; then
-	if [ -d "ports/$2" ]; then
-		echo -n "$3" > "ports/$2/db-name";
-		message "database name renamed" "M" "blue";
-	else
-		message "port was not given" "E" "red";
-	fi
+   if [ -d "ports/$2" ]; then
+      echo -n "$3" > "ports/$2/db-name";
+      message "database name renamed" "M" "blue";
+   else
+      message "port was not given" "E" "red";
+   fi
 elif [ "$1" == "list" ]; then
    message "neo4j databases:" "M" "blue";
    for x in `ls ports`; do
@@ -150,7 +150,7 @@ elif [ "$1" == "destroy" ]; then
       message "database on port [$2] was deleted" "M" "blue";
    else
       if [ ! -d "ports/$2" ]; then
-	      message "port [$2] does not exist" "W" "red";
+         message "port [$2] does not exist" "W" "red";
       else
          message "was unable to delete port [$2]" "W" "red";
       fi
