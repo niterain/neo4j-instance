@@ -48,10 +48,10 @@ TXT
 }
 
 declare -A colors;
-colors=( ["blue"]="\e[1;34m" ["green"]="\e[1;32m" ["no-color"]="\e[0m" ["red"]="\e[1;31m" ["grey"]="\e[1;37m" ["magenta"]="\e[1;95m" ["purple"]="\e[38;5;135m" );
+colors=( ["blue"]="\e[1;34m" ["green"]="\e[1;32m" ["no-color"]="\e[0m" ["red"]="\e[1;31m" ["grey"]="\e[1;37m" ["magenta"]="\e[1;95m" ["purple"]="\e[38;5;135m" ["ecru"]="\e[33m" );
 username=`whoami`;
 startPort=7474;
-currentVersion="2.1.6";
+currentVersion="2.1.7";
 neo4jType="community";
 
 if [ $username == 'root' ]; then
@@ -90,14 +90,17 @@ elif [ "$1" == "create" ]; then
    # set neo4j type and version
    while getopts "d:t:v:" o; do
       case "$o" in
-         d) dbName=$OPTARG;
+         d) if grep "^$OPTARG\$" ports/*/db-name > /dev/null; then
+                message "database name is already taken" "E" "red";
+                exit;
+            fi
+            dbName=$OPTARG;
             ;;
          t) type=$OPTARG;
             (( type == "community" || type == "enterprise")) && neo4jType=$type;
             ;;
          v) version=$OPTARG;
-            if [[ $version =~ ^\d+\.\d+\.\d+$ ]]; then
-               echo "version";
+            if [[ $version =~ ^[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+$ ]]; then
                currentVersion=$version
             fi
             ;;
@@ -108,7 +111,14 @@ elif [ "$1" == "create" ]; then
 
    if [ ! -d "neo4j-skeleton/${neo4jType}-${currentVersion}" ]; then
       mkdir -p "./neo4j-skeleton/${neo4jType}-${currentVersion}";
-      curl -# -L "http://neo4j.com/artifact.php?name=neo4j-${neo4jType}-${currentVersion}-unix.tar.gz" | tar xzC "neo4j-skeleton/${neo4jType}-${currentVersion}/" --strip-components 1
+      if hash curl; then
+        curl -# -L "http://neo4j.com/artifact.php?name=neo4j-${neo4jType}-${currentVersion}-unix.tar.gz" | tar xzC "neo4j-skeleton/${neo4jType}-${currentVersion}/" --strip-components 1
+      elif hash wget; then
+        wget -O- "http://neo4j.com/artifact.php?name=neo4j-${neo4jType}-${currentVersion}-unix.tar.gz" | tar xzC "neo4j-skeleton/${neo4jType}-${currentVersion}/" --strip-components 1
+      else
+        message "please install curl or wget" "W" "blue";
+        exit;
+      fi
    fi
 
    if [ ! -d "ports/$lastPort" ]; then
@@ -117,6 +127,8 @@ elif [ "$1" == "create" ]; then
       cat "neo4j-skeleton/${neo4jType}-${currentVersion}/conf/neo4j-server.properties" | sed -e "s/org.neo4j.server.webserver.port=7474/org.neo4j.server.webserver.port=$lastPort/" | sed -e "s/org.neo4j.server.webserver.https.port=7473/org.neo4j.server.webserver.https.port=$lastSslPort/" > ports/$lastPort/conf/neo4j-server.properties
       if [ ! -z "$dbName" ]; then
          echo -n "$dbName" > ports/$lastPort/db-name
+         echo -n "$neo4jType" > ports/$lastPort/db-type
+         echo -n "$currentVersion" > ports/$lastPort/db-version
       fi
    fi
 elif [ "$1" == "rename-db" ]; then
@@ -136,8 +148,11 @@ elif [ "$1" == "list" ]; then
          status="${colors["blue"]}off${colors["no-color"]}";
       fi
       if [ -f "ports/$x/db-name" ]; then
-         dbName=`cat ports/$x/db-name`; 
-         dbAddon="- db [${colors["purple"]}$dbName${colors["no-color"]}]";
+         dbName=`cat ports/$x/db-name`;
+         type=`cat ports/$x/db-type`;
+         version=`cat ports/$x/db-version`;
+         typeInfo=`printf "%10s" $type`;
+         dbAddon="- <${colors["grey"]}$typeInfo${colors["no-color"]}:${colors["ecru"]}$version${colors["no-color"]}> - db [${colors["purple"]}$dbName${colors["no-color"]}]";
       fi
       message "    $x - status [$status] $dbAddon";
    done

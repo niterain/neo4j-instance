@@ -2,8 +2,8 @@ Neo4J Instance
 ==============
 
 This bash script was mainly written to manage different instances of neo4j on a development system.  I decided to make it available for
-people who find themselves in the same boat.  I got the idea after seeing a neo4j video tutorial where they had a web manager that allowed
-them to start up different databases for their presentations.  I looked for the app, but didn't find it.  So I decided to write my own.
+people who find themselves in the same boat.  It doesn't require much, since it is written totally in bash script.  Make sure you have 
+wget, or curl installed and you should be all set.
 
 ###USAGE
 ```
