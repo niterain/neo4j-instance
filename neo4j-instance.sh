@@ -1,5 +1,49 @@
 #!/bin/bash
 
+function usage {
+    read -r -d "" output << TXT
+Usage: neo4j-instance [command]
+
+The commands are as follows:
+ help                           outputs this document
+ create [option]                create a new database instance
+     options:
+        -d <db name>            sets the name of the neo4j instance
+        -t <neo4j type>         sets the neo4j type (community | enterprise)
+        -v <neo4j version>      sets neo4j version (default: $currentVersion)
+ rename-db <port> <db name>     renames the db neo4j instance
+ start <port>                   starts a neo4j instance
+ stop <port>                    stops a neo4j instance
+ destroy <port>                 destroys a database instance
+ shell <port>                   allows you to enter in shell mode
+ list                           list the different databases,
+                                with their ports and their statuses
+ list plugins [port]            list the available plugins for neo4j
+
+Report bugs to levi@eneservices.com
+TXT
+    echo "$output";
+}
+
+function setup {
+    if [ "$username" == 'root' ]; then
+        message "script should not be ran as root" "W" "red";
+        exit;
+    fi
+
+    if [ -d ~/neo4j-instances ]; then
+        cd ~/neo4j-instances
+    else
+        cd ~;
+        mkdir neo4j-instances;
+        cd ~/neo4j-instances;
+    fi
+
+    if [ ! -d ports ]; then
+        mkdir ports
+    fi
+}
+
 function portIsTaken {
     port=$1;
     if (netstat -tulpn 2>&1 | sed -e 's/\s\+/ /g' | cut -d " " -f4 >&1 | grep ":$port$" > /dev/null); then
@@ -31,59 +75,7 @@ function message {
     echo -e "$tag$message";
 }
 
-function usage {
-    read -r -d "" output << TXT
-Usage: neo4j-instance [command]
-
-The commands are as follows:
- help                           outputs this document
- create [option]                create a new database instance
-     options:
-        -d <db name>            sets the name of the neo4j instance
-        -t <neo4j type>         sets the neo4j type (community | enterprise)
-        -v <neo4j version>      sets neo4j version (default: $currentVersion)
- rename-db <port> <db name>     renames the db neo4j instance
- start <port>                   starts a neo4j instance
- stop <port>                    stops a neo4j instance
- destroy <port>                 destroys a database instance
- shell <port>                   allows you to enter in shell mode
- list                           list the different databases,
-                                with their ports and their statuses
- list plugins [port]            list the available plugins for neo4j
-
-Report bugs to levi@eneservices.com
-TXT
-    echo "$output";
-}
-
-declare -A colors;
-colors=( ["blue"]="\e[1;34m" ["green"]="\e[1;32m" ["no-color"]="\e[0m" ["red"]="\e[1;31m" ["grey"]="\e[1;37m" ["magenta"]="\e[1;95m" ["purple"]="\e[38;5;135m" ["ecru"]="\e[33m" );
-username=$(whoami);
-startPort=7474;
-startShellPort=1337;
-currentVersion="2.2.0";
-neo4jType="community";
-
-if [ "$username" == 'root' ]; then
-    message "script should not be ran as root" "W" "red";
-    exit;
-fi
-
-if [ -d ~/neo4j-instances ]; then
-    cd ~/neo4j-instances
-else
-    cd ~;
-    mkdir neo4j-instances;
-    cd ~/neo4j-instances;
-fi
-
-if [ ! -d ports ]; then
-    mkdir ports
-fi
-
-if [ -z "$1" ] || [ "$1" == "help" ] || [ "$1" == "-h" ]; then
-    usage;
-elif [ "$1" == "create" ]; then
+function createDatabase {
     dbName="";
     lastShellPort=$startShellPort;
     lastPort=$(ls ports | sort | tail -n1);
@@ -141,6 +133,7 @@ elif [ "$1" == "create" ]; then
         cp -r "neo4j-skeleton/${neo4jType}-${currentVersion}" "ports/$lastPort";
         cat "neo4j-skeleton/${neo4jType}-${currentVersion}/conf/neo4j-server.properties" | sed -e "s/org.neo4j.server.webserver.port=7474/org.neo4j.server.webserver.port=$lastPort/" | sed -e "s/org.neo4j.server.webserver.https.port=7473/org.neo4j.server.webserver.https.port=$lastSslPort/" > ports/$lastPort/conf/neo4j-server.properties
         cat "neo4j-skeleton/${neo4jType}-${currentVersion}/conf/neo4j.properties" | sed -e "s/^#remote_shell_port/remote_shell_port/" | sed -e "s/remote_shell_port=1337/remote_shell_port=$lastShellPort/" > ports/$lastPort/conf/neo4j.properties
+        cat "neo4j-skeleton/${neo4jType}-${currentVersion}/conf/neo4j.properties" | sed -e "s/^#remote_shell_port/remote_shell_port/" | sed -e "s/remote_shell_port=1337/remote_shell_port=$lastShellPort/" | sed -e "s/online_backup_enabled=true/online_backup_enabled=false/" > ports/$lastPort/conf/neo4j.properties
 
         if [ ! -z "$dbName" ]; then
             echo -n "$dbName" > ports/$lastPort/db-name
@@ -149,7 +142,9 @@ elif [ "$1" == "create" ]; then
             echo -n "$lastShellPort" > ports/$lastPort/shell-port
         fi
     fi
-elif [ "$1" == "rename-db" ]; then
+}
+
+function renameDatabase {
     if [ -d "ports/$2" ]; then
         if databaseExists "$3"; then
             message "database already exists" "E" "red";
@@ -161,7 +156,9 @@ elif [ "$1" == "rename-db" ]; then
     else
         message "port was not given" "E" "red";
     fi
-elif [ "$1" == "list" ]; then
+}
+
+function displayList {
     if [ "$2" == "plugins" ]; then
         message "neo4j plugins you can install:" "M" "blue";
     else
@@ -185,7 +182,9 @@ elif [ "$1" == "list" ]; then
             message "    $x - [$status] $dbAddon";
         done
     fi
-elif [ "$1" == "destroy" ]; then
+}
+
+function destroyDatabase {
     if [ ! -z "$2" ] && [ -d "ports/$2" ]; then
         if (portIsTaken "$2"); then
             ./ports/"$2"/bin/neo4j stop;
@@ -199,31 +198,83 @@ elif [ "$1" == "destroy" ]; then
             message "was unable to delete port [$2]" "W" "red";
         fi
     fi
-elif [ "$1" == "start" ] || [ "$1" == "stop" ] || [ "$1" == "status" ] || [ "$1" == "shell" ]; then
-    if [ ! -z "$2" ]; then
-        if [ "$1" == "start" ] && (portIsTaken "$2"); then
-            message "database already started" "W" "red";
-        elif [ "$1" == "stop" ] && (! portIsTaken "$2") && [ -d "ports/$2" ]; then
-            message "database was already stopped" "W" "red";
-        elif [ ! -d "ports/$2" ]; then
-            message "database was never created for that port" "W" "red";
-        elif [ "$1" == "shell" ]; then
-            shellPort=$(cat ./ports/"$2"/shell-port);
-            if (portIsTaken "$2"); then
-                ./ports/"$2"/bin/neo4j-shell -port $shellPort;
-            else
-                message "database has not been started" "W" "red";
-            fi
-        else
-            cd "ports/$2/bin";
-            if [ "$1" == "start" ]; then
-                # wanted to reduce the output of the start to one line.
-                ./neo4j start | grep http;
-            else
-                ./neo4j "$1"
-            fi
-        fi
-    else
-        message "port was not given" "W" "red";
+}
+
+function check {
+    if [ "$1" == "start" ] && (portIsTaken "$2"); then
+        message "database already started" "W" "red";
+        return 1;
+    elif [ "$1" == "stop" ] && (! portIsTaken "$2") && [ -d "ports/$2" ]; then
+        message "database was already stopped" "W" "red";
+        return 1;
+    elif [ ! -d "ports/$2" ]; then
+        message "database was never created for that port" "W" "red";
+        return 1;
     fi
-fi
+    return 0;
+}
+
+function databaseCommand {
+    if (check "${@}"); then
+        cd "ports/$2/bin";
+        ./neo4j "$1";
+    fi
+}
+
+function startDatabase {
+    databaseCommand "${@}" | grep http;
+}
+
+function stopDatabase {
+    databaseCommand "${@}";
+}
+
+function databaseStatus {
+    databaseCommand "${@}";
+}
+
+function startShell {
+    shellPort=$(cat ./ports/"$2"/shell-port);
+    if (portIsTaken "$2"); then
+        ./ports/"$2"/bin/neo4j-shell -port $shellPort;
+    else
+        message "database has not been started" "W" "red";
+    fi
+}
+
+declare -A colors;
+colors=( ["blue"]="\e[1;34m" ["green"]="\e[1;32m" ["no-color"]="\e[0m" ["red"]="\e[1;31m" ["grey"]="\e[1;37m" ["magenta"]="\e[1;95m" ["purple"]="\e[38;5;135m" ["ecru"]="\e[33m" );
+username=$(whoami);
+startPort=7474;
+lastShellPort=1337;
+currentVersion="2.2.2";
+neo4jType="community";
+
+setup;
+
+case "$1" in
+    create)
+        createDatabase "${@}";
+        ;;
+    rename-db)
+        renameDatabase "${@}";
+        ;;
+    start)
+        startDatabase "${@}";
+        ;;
+    stop)
+        stopDatabase "${@}";
+        ;;
+    destroy)
+        destroyDatabase "${@}";
+        ;;
+    shell)
+        startShell "${@}";
+        ;;
+    list)
+        displayList "${@}";
+        ;;
+    *)
+        usage;
+        ;;
+esac
