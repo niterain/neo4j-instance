@@ -168,9 +168,9 @@ function renameDatabase {
 function getPlugins {
     plugins="";
     if hash curl; then
-        curl -vs http://internal.www.diracian.com/neo4j-plugins/$currentVersion 2> /dev/null 1> plugins;
+        curl -vs http://www.diracian.com/neo4j-plugins/$currentVersion 2> /dev/null 1> plugins;
     elif hash wget; then
-        wget -qO-http://internal.www.diracian.com/neo4j-plugins/$currentVersion 2> /dev/null 1> plugins;
+        wget -qO-http://www.diracian.com/neo4j-plugins/$currentVersion 2> /dev/null 1> plugins;
     fi
     cat plugins
 }
