@@ -18,11 +18,14 @@ The commands are as follows:
  shell <port>                   allows you to enter in shell mode
  list                           list the different databases,
                                 with their ports and their statuses
- list plugins [port]            list the available plugins for neo4j
+ plugin list [port]             list the available plugins for neo4j
+ plugin install <alias> <port>  installs a plugin
+ plugin install <alias> <port>  remove a plugin
 
 Report bugs to levi@eneservices.com
 TXT
     echo "$output";
+    exit 1;
 }
 
 function setup {
@@ -40,7 +43,7 @@ function setup {
     fi
 
     if [ ! -d ports ]; then
-        mkdir ports
+        mkdir ports;
     fi
 }
 
@@ -81,8 +84,12 @@ function createDatabase {
     lastPort=$(ls ports | sort | tail -n1);
     lastSslPort=$((lastPort - 1));
 
-    if [ -z "$lastPort" ] || [ -d "ports/$lastPort" ]; then
-        lastPort=$startPort;
+    if [ -z "$lastPort" ]; then
+        lastPort="$startPort";
+        lastSslPort=$((lastPort - 1));
+    fi
+
+    if [ -d "ports/$lastPort" ]; then
         while [ -d "ports/$lastPort" ]; do
             lastShellPort=$(cat ports/$lastPort/shell-port);
             lastPort=$((lastPort + 2));
@@ -158,9 +165,96 @@ function renameDatabase {
     fi
 }
 
+function getPlugins {
+    plugins="";
+    if hash curl; then
+        curl -vs http://internal.www.diracian.com/neo4j-plugins/$currentVersion 2> /dev/null 1> plugins;
+    elif hash wget; then
+        wget -qO-http://internal.www.diracian.com/neo4j-plugins/$currentVersion 2> /dev/null 1> plugins;
+    fi
+    cat plugins
+}
+
+function plugin {
+    if [ ! -z "$3" ] && [ "$2" == "list" ] && [ -d "ports/$3" ]; then
+        for i in `ls "ports/$3/plugins/" | grep '\.jar$'`; do
+            OLDIFS=$IFS;
+            IFS=$'\n';
+            for line in `cat plugins | grep "$i" `; do
+                alias=$(echo $line | cut -d"|" -f1);
+                name=$(echo $line | cut -d"|" -f2);
+                pad=$(printf "%-6s" "$alias");
+
+                message "    ${colors["blue"]}[${colors["no-color"]}${colors["green"]}$pad${colors["no-color"]}${colors["blue"]}]${colors["no-color"]} - ${colors["magenta"]}$name${colors["no-color"]}";
+            done
+            IFS=$OLDIFS;
+        done
+    elif [ "$2" == "list" ]; then
+        message "neo4j plugins you can install:" "M" "blue";
+
+        plugins=$(getPlugins);
+        OLDIFS=$IFS;
+        IFS=$'\n';
+        for line in $plugins; do
+            alias=$(echo $line | cut -d"|" -f1);
+            name=$(echo $line | cut -d"|" -f2);
+            pad=$(printf "%-6s" "$alias");
+
+            message "    ${colors["blue"]}[${colors["no-color"]}${colors["green"]}$pad${colors["no-color"]}${colors["blue"]}]${colors["no-color"]} - ${colors["magenta"]}$name${colors["no-color"]}";
+        done
+        IFS=$OLDIFS;
+    elif [ "$2" == "install" ] && [ -d "ports/$4" ]; then
+        for i in `cat plugins | grep "$3" | cut -d"|" -f3`; do
+            url=$(echo $i | cut -d"|" -f3);
+            filename=${url##*/};
+            if [ -f "ports/$4/plugins/$filename" ]; then
+                message "plugin is already installed." "E" "red";
+            else
+                if hash curl; then
+                    curl -# -L "$url" -o "ports/$4/plugins/$filename";
+                elif hash wget; then
+                    wget "$url" -O "ports/$4/plugins/$filename";
+                fi
+            fi
+        done
+    elif [ "$2" == "remove" ] && [ -d "ports/$4" ]; then
+        for i in `cat plugins | grep "$3" | cut -d"|" -f3`; do
+            url=$(echo $i | cut -d"|" -f3);
+            filename=${url##*/};
+            if [ -f "ports/$4/plugins/$filename" ]; then
+                rm "ports/$4/plugins/$filename";
+                message "plugin [$3 -- $filename] was removed." "M" "blue";
+            else
+                message "plugin is not installed." "E" "red";
+            fi
+        done
+    elif [ ! -d "ports/$4" ]; then
+        message "port [$4] does not exists." "E" "red";
+    fi
+}
+
 function displayList {
     if [ "$2" == "plugins" ]; then
         message "neo4j plugins you can install:" "M" "blue";
+
+        if hash curl; then
+            downloader_string="curl -vs";
+        elif hash wget; then
+            downloader_string="wget -qO-";
+        fi
+        plugins=$($downloader_string http://internal.www.diracian.com/neo4j-plugins/$currentVersion);
+
+        OLDIFS=$IFS;
+        IFS=$'\n';
+        for line in $plugins; do
+            alias=$(echo $line | cut -d"|" -f1);
+            name=$(echo $line | cut -d"|" -f2);
+            pad=$(printf "%-6s" "$alias");
+
+            message "${colors["blue"]}[${colors["no-color"]}${colors["green"]}$pad${colors["no-color"]}${colors["blue"]}]${colors["no-color"]} - ${colors["magenta"]}$name${colors["no-color"]}";
+        done
+        IFS=$OLDIFS;
+
     else
         message "neo4j databases:" "M" "blue";
         for x in $(ls ports); do
@@ -236,7 +330,7 @@ function databaseStatus {
 function startShell {
     shellPort=$(cat ./ports/"$2"/shell-port);
     if (portIsTaken "$2"); then
-        ./ports/"$2"/bin/neo4j-shell -port $shellPort;
+        ./ports/"$2"/bin/neo4j-shell -port "$shellPort";
     else
         message "database has not been started" "W" "red";
     fi
@@ -246,7 +340,7 @@ declare -A colors;
 colors=( ["blue"]="\e[1;34m" ["green"]="\e[1;32m" ["no-color"]="\e[0m" ["red"]="\e[1;31m" ["grey"]="\e[1;37m" ["magenta"]="\e[1;95m" ["purple"]="\e[38;5;135m" ["ecru"]="\e[33m" );
 username=$(whoami);
 startPort=7474;
-lastShellPort=1337;
+startShellPort=1337;
 currentVersion="2.2.2";
 neo4jType="community";
 
@@ -273,6 +367,9 @@ case "$1" in
         ;;
     list)
         displayList "${@}";
+        ;;
+     plugin)
+        plugin "${@}";
         ;;
     *)
         usage;
