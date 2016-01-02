@@ -1,6 +1,48 @@
 #!/bin/bash
 
-platform=`uname | tr "A-Z" "a-z"`;
+bash_version=`echo $BASH_VERSION |sed -e  "s/[^0-9\.]//g"`;
+
+function vercomp {
+    if [[ $1 == $2 ]]
+    then
+	echo "0";
+	return 0;
+    fi
+    local IFS=.
+    local i ver1=($1) ver2=($2)
+    # fill empty fields in ver1 with zeros
+    for ((i=${#ver1[@]}; i<${#ver2[@]}; i++))
+    do
+        ver1[i]=0
+    done
+    for ((i=0; i<${#ver1[@]}; i++))
+    do
+        if [[ -z ${ver2[i]} ]]
+        then
+            # fill empty fields in ver2 with zeros
+            ver2[i]=0
+        fi
+        if ((10#${ver1[i]} > 10#${ver2[i]}))
+        then
+	    echo 1;
+	    return 1;
+        fi
+        if ((10#${ver1[i]} < 10#${ver2[i]}))
+        then
+            echo 2;
+	    return 2;
+        fi
+    done
+    echo 0;
+    return 0;
+}
+
+
+versionResults=`vercomp "$bash_version" "4.0"`;
+if [[ "$versionResults" == 2 ]]; then 
+    echo "need bash 4.0 to run properly";
+    exit;
+fi
 
 function usage {
     read -r -d "" output << TXT
@@ -69,14 +111,8 @@ function message {
     tag=$2
     color=$3
 
-    if [[ "$platform" != "darwin" ]]; then
-	    if [ ! -z "$color" ]; then
-		color="${colors["$color"]}";
-	    fi
-
-	    if [ ! -z "$tag" ]; then
-		tag="*$color$tag${colors["no-color"]}* ";
-	    fi
+    if [ ! -z "$tag" ]; then
+	tag="*${colors[${color}]}$tag${colors["no-color"]}* ";
     fi
 
     echo -e "$tag$message";
@@ -340,7 +376,7 @@ function startShell {
     fi
 }
 
-declare -a colors;
+declare -A colors;
 colors=( ["blue"]="\e[1;34m" ["green"]="\e[1;32m" ["no-color"]="\e[0m" ["red"]="\e[1;31m" ["grey"]="\e[1;37m" ["magenta"]="\e[1;95m" ["purple"]="\e[38;5;135m" ["ecru"]="\e[33m" );
 username=$(whoami);
 startPort=7474;
