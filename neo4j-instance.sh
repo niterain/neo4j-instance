@@ -381,7 +381,7 @@ colors=( ["blue"]="\e[1;34m" ["green"]="\e[1;32m" ["no-color"]="\e[0m" ["red"]="
 username=$(whoami);
 startPort=7474;
 startShellPort=1337;
-currentVersion="2.2.2";
+currentVersion="2.3.1";
 neo4jType="community";
 
 setup;
