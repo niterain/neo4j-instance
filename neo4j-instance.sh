@@ -1,5 +1,7 @@
 #!/bin/bash
 
+platform=`uname | tr "A-Z" "a-z"`;
+
 function usage {
     read -r -d "" output << TXT
 Usage: neo4j-instance [command]
@@ -67,12 +69,14 @@ function message {
     tag=$2
     color=$3
 
-    if [ ! -z "$color" ]; then
-        color="${colors["$color"]}";
-    fi
+    if [[ "$platform" != "darwin" ]]; then
+	    if [ ! -z "$color" ]; then
+		color="${colors["$color"]}";
+	    fi
 
-    if [ ! -z "$tag" ]; then
-        tag="*$color$tag${colors["no-color"]}* ";
+	    if [ ! -z "$tag" ]; then
+		tag="*$color$tag${colors["no-color"]}* ";
+	    fi
     fi
 
     echo -e "$tag$message";
