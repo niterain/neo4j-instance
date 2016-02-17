@@ -93,8 +93,14 @@ function setup {
 
 function portIsTaken {
     port=$1;
-    if (netstat -tulpn 2>&1 | sed -e 's/\s\+/ /g' | cut -d " " -f4 >&1 | grep ":$port$" > /dev/null); then
-        return 0;
+    if [ $( uname -s ) == "Darwin" ]; then
+        if lsof -nP -i "4tcp:${port}" -s TCP:LISTEN > /dev/null; then
+            return 0
+        fi
+    else
+        if (netstat -tulpn 2>&1 | sed -e 's/\s\+/ /g' | cut -d " " -f4 >&1 | grep ":$port$" > /dev/null); then
+            return 0;
+        fi
     fi
     return 1;
 }
