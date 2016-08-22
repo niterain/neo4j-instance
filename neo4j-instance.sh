@@ -192,7 +192,7 @@ function createDatabase {
             cat "${skeletonPath}/conf/neo4j.properties" | sed -e "s/^#remote_shell_port/remote_shell_port/" | sed -e "s/remote_shell_port=1337/remote_shell_port=$lastShellPort/" | sed -e "s/online_backup_enabled=true/online_backup_enabled=false/" > ports/$lastPort/conf/neo4j.properties
         fi
         if [ -e "${skeletonPath}/conf/neo4j.conf" ]; then
-            cat "${skeletonPath}/conf/neo4j.conf" | sed -e "s/#dbms.connector.http.address=0.0.0.0:7474/dbms.connector.http.address=localhost:$lastPort/" | sed -e "s/dbms.connector.https.address=localhost:7473/dbms.connector.https.address=localhost:$lastSslPort/" > ports/$lastPort/conf/neo4j.conf
+            cat "${skeletonPath}/conf/neo4j.conf" | sed -e "s/#dbms.connector.http.address=0.0.0.0:7474/dbms.connector.http.address=localhost:$lastPort/" | sed -e "s/dbms.connector.https.address=localhost:7473/dbms.connector.https.address=localhost:$lastSslPort/" | sed -e "s/dbms.connector.bolt.enabled=true/dbms.connector.bolt.enabled=false/" > ports/$lastPort/conf/neo4j.conf
         fi
 
         if [ ! -z "$dbName" ]; then
