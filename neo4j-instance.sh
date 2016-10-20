@@ -25,7 +25,7 @@ function vercomp {
         if ((10#${ver1[i]} > 10#${ver2[i]}))
         then
 	    echo 1;
-	    return 1;
+	    return 0; # Return zero, because this is okay
         fi
         if ((10#${ver1[i]} < 10#${ver2[i]}))
         then
@@ -39,9 +39,9 @@ function vercomp {
 
 
 versionResults=`vercomp "$bash_version" "4.0"`;
-if [[ "$versionResults" == 2 ]]; then 
-    echo "need bash 4.0 to run properly";
-    exit;
+if [[ "$versionResults" == 0 ]]; then 
+    declare -A colors;
+    colors=( ["blue"]="\e[1;34m" ["green"]="\e[1;32m" ["no-color"]="\e[0m" ["red"]="\e[1;31m" ["grey"]="\e[1;37m" ["magenta"]="\e[1;95m" ["purple"]="\e[38;5;135m" ["ecru"]="\e[33m" );
 fi
 
 function usage {
@@ -169,8 +169,10 @@ function createDatabase {
         esac
     done
 
-    if [ ! -d "neo4j-skeleton/${neo4jType}-${currentVersion}" ]; then
-        mkdir -p "./neo4j-skeleton/${neo4jType}-${currentVersion}";
+    skeletonPath="./neo4j-skeleton/${neo4jType}-${currentVersion}"
+    if [ ! -d "$skeletonPath" ]; then
+        echo "Creating skeleton in ${skeletonPath}..."
+        mkdir -p "${skeletonPath}"
         if hash curl; then
             curl -# -L "http://neo4j.com/artifact.php?name=neo4j-${neo4jType}-${currentVersion}-unix.tar.gz" | tar xzC "neo4j-skeleton/${neo4jType}-${currentVersion}/" --strip-components 1
         elif hash wget; then
@@ -183,10 +185,15 @@ function createDatabase {
 
     if [ ! -d "ports/$lastPort" ]; then
         message "create database" "X" "green";
-        cp -r "neo4j-skeleton/${neo4jType}-${currentVersion}" "ports/$lastPort";
-        cat "neo4j-skeleton/${neo4jType}-${currentVersion}/conf/neo4j-server.properties" | sed -e "s/org.neo4j.server.webserver.port=7474/org.neo4j.server.webserver.port=$lastPort/" | sed -e "s/org.neo4j.server.webserver.https.port=7473/org.neo4j.server.webserver.https.port=$lastSslPort/" > ports/$lastPort/conf/neo4j-server.properties
-        cat "neo4j-skeleton/${neo4jType}-${currentVersion}/conf/neo4j.properties" | sed -e "s/^#remote_shell_port/remote_shell_port/" | sed -e "s/remote_shell_port=1337/remote_shell_port=$lastShellPort/" > ports/$lastPort/conf/neo4j.properties
-        cat "neo4j-skeleton/${neo4jType}-${currentVersion}/conf/neo4j.properties" | sed -e "s/^#remote_shell_port/remote_shell_port/" | sed -e "s/remote_shell_port=1337/remote_shell_port=$lastShellPort/" | sed -e "s/online_backup_enabled=true/online_backup_enabled=false/" > ports/$lastPort/conf/neo4j.properties
+        cp -r $skeletonPath "ports/$lastPort";
+        if [ -e "${skeletonPath}/conf/neo4j-server.properties" ]; then
+            cat "${skeletonPath}/conf/neo4j-server.properties" | sed -e "s/org.neo4j.server.webserver.port=7474/org.neo4j.server.webserver.port=$lastPort/" | sed -e "s/org.neo4j.server.webserver.https.port=7473/org.neo4j.server.webserver.https.port=$lastSslPort/" > ports/$lastPort/conf/neo4j-server.properties
+            cat "${skeletonPath}/conf/neo4j.properties" | sed -e "s/^#remote_shell_port/remote_shell_port/" | sed -e "s/remote_shell_port=1337/remote_shell_port=$lastShellPort/" > ports/$lastPort/conf/neo4j.properties
+            cat "${skeletonPath}/conf/neo4j.properties" | sed -e "s/^#remote_shell_port/remote_shell_port/" | sed -e "s/remote_shell_port=1337/remote_shell_port=$lastShellPort/" | sed -e "s/online_backup_enabled=true/online_backup_enabled=false/" > ports/$lastPort/conf/neo4j.properties
+        fi
+        if [ -e "${skeletonPath}/conf/neo4j.conf" ]; then
+            cat "${skeletonPath}/conf/neo4j.conf" | sed -e "s/#dbms.connector.http.address=0.0.0.0:7474/dbms.connector.http.address=localhost:$lastPort/" | sed -e "s/dbms.connector.https.address=localhost:7473/dbms.connector.https.address=localhost:$lastSslPort/" | sed -e "s/dbms.connector.bolt.enabled=true/dbms.connector.bolt.enabled=false/" > ports/$lastPort/conf/neo4j.conf
+        fi
 
         if [ ! -z "$dbName" ]; then
             echo -n "$dbName" > ports/$lastPort/db-name
@@ -382,12 +389,10 @@ function startShell {
     fi
 }
 
-declare -A colors;
-colors=( ["blue"]="\e[1;34m" ["green"]="\e[1;32m" ["no-color"]="\e[0m" ["red"]="\e[1;31m" ["grey"]="\e[1;37m" ["magenta"]="\e[1;95m" ["purple"]="\e[38;5;135m" ["ecru"]="\e[33m" );
 username=$(whoami);
 startPort=7474;
 startShellPort=1337;
-currentVersion="2.3.1";
+currentVersion="3.0.4";
 neo4jType="community";
 
 setup;

@@ -26,6 +26,6 @@ bash script.  Make sure you have wget, or curl installed and you should be all s
 
 ###NEW STUFF
 
-I have found some really useful plugins, that are created by a company called [GraphAware](www.graphaware.com).  I am 
+I have found some really useful plugins, that are created by a company called [GraphAware](http://www.graphaware.com).  I am 
 using about two of their plugins, but I am giving a full listing of what they offer.  I am using their TimeTree in 
 everything I do now.
