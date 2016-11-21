@@ -39,7 +39,7 @@ function vercomp {
 
 
 versionResults=`vercomp "$bash_version" "4.0"`;
-if [[ "$versionResults" == 0 ]]; then 
+if [[ "$versionResults" != 2  ]]; then 
     declare -A colors;
     colors=( ["blue"]="\e[1;34m" ["green"]="\e[1;32m" ["no-color"]="\e[0m" ["red"]="\e[1;31m" ["grey"]="\e[1;37m" ["magenta"]="\e[1;95m" ["purple"]="\e[38;5;135m" ["ecru"]="\e[33m" );
 fi
@@ -392,7 +392,7 @@ function startShell {
 username=$(whoami);
 startPort=7474;
 startShellPort=1337;
-currentVersion="3.0.4";
+currentVersion="3.0.7";
 neo4jType="community";
 
 setup;
