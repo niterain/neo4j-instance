@@ -2,6 +2,13 @@
 
 bash_version=`echo $BASH_VERSION |sed -e  "s/[^0-9\.]//g"`;
 
+username=$(whoami);
+startPort=7474;
+startShellPort=1337;
+currentVersion="3.1.1";
+neo4jType="community";
+docker=0;
+
 function vercomp {
     if [[ $1 == $2 ]]
     then
@@ -55,6 +62,7 @@ The commands are as follows:
         -d <db name>            sets the name of the neo4j instance
         -t <neo4j type>         sets the neo4j type (community | enterprise)
         -v <neo4j version>      sets neo4j version (default: $currentVersion)
+        -c
  rename-db <port> <db name>     renames the db neo4j instance
  start <port>                   starts a neo4j instance
  stop <port>                    stops a neo4j instance
@@ -118,7 +126,7 @@ function message {
     color=$3
 
     if [ ! -z "$tag" ]; then
-	tag="*${colors[${color}]}$tag${colors["no-color"]}* ";
+    tag="*${colors[${color}]}$tag${colors["no-color"]}* ";
     fi
 
     echo -e "$tag$message";
@@ -148,24 +156,26 @@ function createDatabase {
 
     OPTIND=2;
     # set neo4j type and version
-    while getopts "d:t:v:" o; do
+    while getopts "d:t:v:c" o; do
         case "$o" in
-            d) if  databaseExists "$OPTARG"; then
-                message "database name is already taken" "E" "red";
-                exit;
-            fi
-            dbName=$OPTARG;
-            ;;
-        t) type=$OPTARG;
-            (( "$type" == "community" || "$type" == "enterprise")) && neo4jType=$type;
-            ;;
-        v) version=$OPTARG;
-            if [[ $version =~ ^[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+$ ]]; then
-                currentVersion=$version
-            fi
-            ;;
-        *) usage;
-            ;;
+            d)  if  databaseExists "$OPTARG"; then
+                    message "database name is already taken" "E" "red";
+                    exit;
+                fi
+                dbName=$OPTARG;
+                ;;
+            t)  type=$OPTARG;
+                (( "$type" == "community" || "$type" == "enterprise")) && neo4jType=$type;
+                ;;
+            v)  version=$OPTARG;
+                if [[ $version =~ ^[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+$ ]]; then
+                    currentVersion=$version
+                fi
+                ;;
+            c)  docker=1;
+                ;;
+            *) usage;
+                ;;
         esac
     done
 
@@ -388,12 +398,6 @@ function startShell {
         message "database has not been started" "W" "red";
     fi
 }
-
-username=$(whoami);
-startPort=7474;
-startShellPort=1337;
-currentVersion="3.0.7";
-neo4jType="community";
 
 setup;
 
