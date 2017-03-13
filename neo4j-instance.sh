@@ -8,6 +8,7 @@ startShellPort=1337;
 currentVersion="3.1.1";
 neo4jType="community";
 docker=0;
+instancesDirectory="$HOME/neo4j-instances";
 
 function vercomp {
     if [[ $1 == $2 ]]
@@ -85,14 +86,13 @@ function setup {
     if [ "$username" == 'root' ]; then
         message "script should not be ran as root" "W" "red";
         exit;
-    fi
-
-    if [ -d ~/neo4j-instances ]; then
-        cd ~/neo4j-instances
-    else
-        cd ~;
-        mkdir neo4j-instances;
-        cd ~/neo4j-instances;
+    fi    
+    echo $instancesDirectory
+    if [ -d $instancesDirectory ]; then
+        cd $instancesDirectory
+    else        
+        mkdir -p $instancesDirectory;
+        cd "$instancesDirectory"
     fi
 
     if [ ! -d ports ]; then
@@ -194,7 +194,6 @@ function createDatabase {
             exit;
         fi
     fi
-
     if [ ! -d "ports/$lastPort" ]; then
         message "create database" "X" "green";        
         cp -r $skeletonPath "ports/$lastPort";
@@ -214,8 +213,7 @@ function createDatabase {
         
         if [ -z "$dbName" ]; then
             dbName="untitled$lastPort";
-        fi
-
+        fi        
         echo -n "$dbName" > ports/$lastPort/db-name
         echo -n "$neo4jType" > ports/$lastPort/db-type
         echo -n "$currentVersion" > ports/$lastPort/db-version
