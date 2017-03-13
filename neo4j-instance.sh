@@ -12,8 +12,8 @@ docker=0;
 function vercomp {
     if [[ $1 == $2 ]]
     then
-	echo "0";
-	return 0;
+    echo "0";
+    return 0;
     fi
     local IFS=.
     local i ver1=($1) ver2=($2)
@@ -31,13 +31,13 @@ function vercomp {
         fi
         if ((10#${ver1[i]} > 10#${ver2[i]}))
         then
-	    echo 1;
-	    return 0; # Return zero, because this is okay
+        echo 1;
+        return 0; # Return zero, because this is okay
         fi
         if ((10#${ver1[i]} < 10#${ver2[i]}))
         then
             echo 2;
-	    return 2;
+        return 2;
         fi
     done
     echo 0;
@@ -59,7 +59,8 @@ The commands are as follows:
  help                           outputs this document
  create [option]                create a new database instance
      options:
-        -d <db name>            sets the name of the neo4j instance
+        -d <db name>            sets the name of the neo4j instance. 
+                                It will use "untitled<port-number>" if not determined
         -t <neo4j type>         sets the neo4j type (community | enterprise)
         -v <neo4j version>      sets neo4j version (default: $currentVersion)
         -c
@@ -179,6 +180,7 @@ function createDatabase {
         esac
     done
 
+
     skeletonPath="./neo4j-skeleton/${neo4jType}-${currentVersion}"
     if [ ! -d "$skeletonPath" ]; then
         echo "Creating skeleton in ${skeletonPath}..."
@@ -194,23 +196,30 @@ function createDatabase {
     fi
 
     if [ ! -d "ports/$lastPort" ]; then
-        message "create database" "X" "green";
+        message "create database" "X" "green";        
         cp -r $skeletonPath "ports/$lastPort";
-        if [ -e "${skeletonPath}/conf/neo4j-server.properties" ]; then
+        if [ -e "${skeletonPath}/conf/neo4j.properties" ]; then
             cat "${skeletonPath}/conf/neo4j-server.properties" | sed -e "s/org.neo4j.server.webserver.port=7474/org.neo4j.server.webserver.port=$lastPort/" | sed -e "s/org.neo4j.server.webserver.https.port=7473/org.neo4j.server.webserver.https.port=$lastSslPort/" > ports/$lastPort/conf/neo4j-server.properties
             cat "${skeletonPath}/conf/neo4j.properties" | sed -e "s/^#remote_shell_port/remote_shell_port/" | sed -e "s/remote_shell_port=1337/remote_shell_port=$lastShellPort/" > ports/$lastPort/conf/neo4j.properties
             cat "${skeletonPath}/conf/neo4j.properties" | sed -e "s/^#remote_shell_port/remote_shell_port/" | sed -e "s/remote_shell_port=1337/remote_shell_port=$lastShellPort/" | sed -e "s/online_backup_enabled=true/online_backup_enabled=false/" > ports/$lastPort/conf/neo4j.properties
         fi
         if [ -e "${skeletonPath}/conf/neo4j.conf" ]; then
-            cat "${skeletonPath}/conf/neo4j.conf" | sed -e "s/#dbms.connector.http.address=0.0.0.0:7474/dbms.connector.http.address=localhost:$lastPort/" | sed -e "s/dbms.connector.https.address=localhost:7473/dbms.connector.https.address=localhost:$lastSslPort/" | sed -e "s/dbms.connector.bolt.enabled=true/dbms.connector.bolt.enabled=false/" > ports/$lastPort/conf/neo4j.conf
+            if  grep -q "#dbms.connector.http.address=0.0.0.0:7474" ${skeletonPath}/conf/neo4j.conf ; then
+                cat "${skeletonPath}/conf/neo4j.conf" | sed -e "s/#dbms.connector.http.address=0.0.0.0:7474/dbms.connector.http.address=localhost:$lastPort/" | sed -e "s/dbms.connector.https.address=localhost:7473/dbms.connector.https.address=localhost:$lastSslPort/" | sed -e "s/dbms.connector.bolt.enabled=true/dbms.connector.bolt.enabled=false/" > ports/$lastPort/conf/neo4j.conf
+            fi
+            if  grep -q "#dbms.connector.http.listen_address=:7474"  ${skeletonPath}/conf/neo4j.conf ; then
+                cat "${skeletonPath}/conf/neo4j.conf" | sed -e "s/#dbms.connector.http.listen_address=:7474/dbms.connector.http.listen_address=:$lastPort/" | sed -e "s/#dbms.connector.https.listen_address=:7473/dbms.connector.https.listen_address=:$lastSslPort/" | sed -e "s/dbms.connector.bolt.enabled=true/dbms.connector.bolt.enabled=false/" > ports/$lastPort/conf/neo4j.conf
+            fi
+        fi
+        
+        if [ -z "$dbName" ]; then
+            dbName="untitled$lastPort";
         fi
 
-        if [ ! -z "$dbName" ]; then
-            echo -n "$dbName" > ports/$lastPort/db-name
-            echo -n "$neo4jType" > ports/$lastPort/db-type
-            echo -n "$currentVersion" > ports/$lastPort/db-version
-            echo -n "$lastShellPort" > ports/$lastPort/shell-port
-        fi
+        echo -n "$dbName" > ports/$lastPort/db-name
+        echo -n "$neo4jType" > ports/$lastPort/db-type
+        echo -n "$currentVersion" > ports/$lastPort/db-version
+        echo -n "$lastShellPort" > ports/$lastPort/shell-port
     fi
 }
 
