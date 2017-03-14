@@ -5,6 +5,7 @@ bash_version=`echo $BASH_VERSION |sed -e  "s/[^0-9\.]//g"`;
 username=$(whoami);
 startPort=7474;
 startShellPort=1337;
+startBoltPort=7687;
 currentVersion="3.1.1";
 neo4jType="community";
 docker=0;
@@ -87,7 +88,6 @@ function setup {
         message "script should not be ran as root" "W" "red";
         exit;
     fi    
-    echo $instancesDirectory
     if [ -d $instancesDirectory ]; then
         cd $instancesDirectory
     else        
@@ -136,25 +136,33 @@ function message {
 function createDatabase {
     dbName="";
     lastShellPort=$startShellPort;
+    lastBoltPort=$startBoltPort;
+    currenBoltPort=$startBoltPort;
+    boltStatus = "off";
     lastPort=$(ls ports | sort | tail -n1);
     lastSslPort=$((lastPort - 1));
 
     if [ -z "$lastPort" ]; then
         lastPort="$startPort";
         lastSslPort=$((lastPort - 1));
-    fi
+    fi    
+    if [ -d "ports/$lastPort" ]; then        
+        lastBoltPort=$(cat ports/$lastPort/bolt-port);
+        currenBoltPort=$((lastBoltPort + 1));
 
-    if [ -d "ports/$lastPort" ]; then
         while [ -d "ports/$lastPort" ]; do
             lastShellPort=$(cat ports/$lastPort/shell-port);
             lastPort=$((lastPort + 2));
             if ( ! portIsTaken $((lastShellPort + 1)) ); then
                 lastShellPort=$((lastShellPort + 1));
-            fi
-        done
+            fi            
+        done        
         lastSslPort=$((lastPort-1));
+        
+        while portIsTaken $((currenBoltPort)) ; do
+            currenBoltPort=$((currenBoltPort+1));        
+        done                
     fi
-
     OPTIND=2;
     # set neo4j type and version
     while getopts "d:t:v:c" o; do
@@ -201,13 +209,17 @@ function createDatabase {
             cat "${skeletonPath}/conf/neo4j-server.properties" | sed -e "s/org.neo4j.server.webserver.port=7474/org.neo4j.server.webserver.port=$lastPort/" | sed -e "s/org.neo4j.server.webserver.https.port=7473/org.neo4j.server.webserver.https.port=$lastSslPort/" > ports/$lastPort/conf/neo4j-server.properties
             cat "${skeletonPath}/conf/neo4j.properties" | sed -e "s/^#remote_shell_port/remote_shell_port/" | sed -e "s/remote_shell_port=1337/remote_shell_port=$lastShellPort/" > ports/$lastPort/conf/neo4j.properties
             cat "${skeletonPath}/conf/neo4j.properties" | sed -e "s/^#remote_shell_port/remote_shell_port/" | sed -e "s/remote_shell_port=1337/remote_shell_port=$lastShellPort/" | sed -e "s/online_backup_enabled=true/online_backup_enabled=false/" > ports/$lastPort/conf/neo4j.properties
+            currenBoltPort = $lastBoltPort;
+            boltStatus='off';
         fi
         if [ -e "${skeletonPath}/conf/neo4j.conf" ]; then
             if  grep -q "#dbms.connector.http.address=0.0.0.0:7474" ${skeletonPath}/conf/neo4j.conf ; then
                 cat "${skeletonPath}/conf/neo4j.conf" | sed -e "s/#dbms.connector.http.address=0.0.0.0:7474/dbms.connector.http.address=localhost:$lastPort/" | sed -e "s/dbms.connector.https.address=localhost:7473/dbms.connector.https.address=localhost:$lastSslPort/" | sed -e "s/dbms.connector.bolt.enabled=true/dbms.connector.bolt.enabled=false/" > ports/$lastPort/conf/neo4j.conf
+                boltStatus='on';
             fi
-            if  grep -q "#dbms.connector.http.listen_address=:7474"  ${skeletonPath}/conf/neo4j.conf ; then
-                cat "${skeletonPath}/conf/neo4j.conf" | sed -e "s/#dbms.connector.http.listen_address=:7474/dbms.connector.http.listen_address=:$lastPort/" | sed -e "s/#dbms.connector.https.listen_address=:7473/dbms.connector.https.listen_address=:$lastSslPort/" | sed -e "s/dbms.connector.bolt.enabled=true/dbms.connector.bolt.enabled=false/" > ports/$lastPort/conf/neo4j.conf
+            if  grep -q "#dbms.connector.http.listen_address=:7474"  ${skeletonPath}/conf/neo4j.conf ; then                
+                cat "${skeletonPath}/conf/neo4j.conf" | sed -e "s/#dbms.connector.http.listen_address=:7474/dbms.connector.http.listen_address=:$lastPort/" | sed -e "s/#dbms.connector.https.listen_address=:7473/dbms.connector.https.listen_address=:$lastSslPort/" | sed -e "s/#dbms.connector.bolt.listen_address=:7687/dbms.connector.bolt.listen_address=:$lastBoltPort/" > ports/$lastPort/conf/neo4j.conf
+                boltStatus='on';
             fi
         fi
         
@@ -218,6 +230,8 @@ function createDatabase {
         echo -n "$neo4jType" > ports/$lastPort/db-type
         echo -n "$currentVersion" > ports/$lastPort/db-version
         echo -n "$lastShellPort" > ports/$lastPort/shell-port
+        echo -n "$currenBoltPort" > ports/$lastPort/bolt-port
+        echo -n "$boltStatus" > ports/$lastPort/bolt-status
     fi
 }
 
@@ -327,6 +341,7 @@ function displayList {
 
     else
         message "neo4j databases:" "M" "blue";
+        message "    port - Bolt Port - Status - <Type> - [Name]"
         for x in $(ls ports); do
             dbAddon="";
             if (portIsTaken "$x"); then
@@ -338,12 +353,17 @@ function displayList {
                 dbName=$(cat "ports/$x/db-name");
                 type=$(cat "ports/$x/db-type");
                 version=$(cat "ports/$x/db-version");
+                boltPort=$(cat "ports/$x/bolt-port");
+                boltStatus=$(cat "ports/$x/bolt-status");
+                if [ "$boltStatus" = "off" ]; then
+                    boltPort="x";
+                fi
                 typeInfo=$(printf "%10s" "$type");
             #    dbAddon="- <${colors["grey"]}$typeInfo${colors["no-color"]}:${colors["ecru"]}$version${colors["no-color"]}> - db [${colors["purple"]}$dbName${colors["no-color"]}]";
                 dbAddon="- <${colors["grey"]}$typeInfo${colors["no-color"]}:${colors["ecru"]}$version${colors["no-color"]}> - [${colors["purple"]}$dbName${colors["no-color"]}]";
             fi
             # message "    $x - status [$status] $dbAddon";
-            message "    $x - [$status] $dbAddon";
+            message "    $x - $boltPort - [$status] $dbAddon";
         done
     fi
 }
