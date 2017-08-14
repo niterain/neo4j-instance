@@ -138,7 +138,7 @@ function createDatabase {
     lastShellPort=$startShellPort;
     lastBoltPort=$startBoltPort;
     currenBoltPort=$startBoltPort;
-    boltStatus = "off";
+    boltStatus="off";
     lastPort=$(ls ports | sort | tail -n1);
     lastSslPort=$((lastPort - 1));
 
